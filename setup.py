@@ -1,17 +1,18 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='fence',
-    version='0.2.0',
+    name="fence",
+    version="0.2.0",
     install_requires=[
-        "Authlib[crypto]",
+        "Authlib",
         "oauth2client<4.0dev,>=2.0.0",
         "addict>=2.1.1, <3.0.0",
-        'boto>=2.36.0,<3.0.0',
-        'botocore>=1.7,<1.9.0',
+        "boto>=2.36.0,<3.0.0",
+        "botocore>=1.7,<1.9.0",
         "boto3>=1.5,<1.6",
         "cirrus",
         "cryptography>=2.1.2",
+        "enum34>=1.1.6",
         "flask-restful>=0.3.6,<1.0.0",
         "Flask>=0.10.1,<1.0.0",
         "Flask-CORS>=3.0.3,<4.0.0",
@@ -35,10 +36,8 @@ setup(
         "userdatamodel",
         "Werkzeug>=0.12.2,<1.0.0",
         "storageclient",
-        "pyyaml"
+        "pyyaml",
     ],
-    scripts=[
-        "bin/fence-create",
-    ],
+    scripts=["bin/fence-create"],
     packages=find_packages(),
 )

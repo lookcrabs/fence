@@ -1,19 +1,18 @@
 #: ``CONFIG_SEARCH_FOLDERS: List(str)``
 #: Folders to look in for the *config.yaml for fence
-CONFIG_SEARCH_FOLDERS = [
-    '/var/www/fence',
-    '/etc/gen3/fence'
-]
+CONFIG_SEARCH_FOLDERS = ["/var/www/fence", "/etc/gen3/fence"]
 
 #: ``ACCESS_TOKEN_COOKIE_NAME: str``
 #: The name of the browser cookie in which the access token will be stored.
-ACCESS_TOKEN_COOKIE_NAME = 'access_token'
+ACCESS_TOKEN_COOKIE_NAME = "access_token"
 
 #: ``SESSION_COOKIE_NAME: str``
 #: The name of the browser cookie in which the session token will be stored.
 #: Note that the session token also stores information for the
 #: ``flask.session`` in the ``context`` field of the token.
-SESSION_COOKIE_NAME = 'fence'
+SESSION_COOKIE_NAME = "fence"
+
+OAUTH2_TOKEN_EXPIRES_IN = {"authorization_code": 1200, "implicit": 1200}
 
 #: ``ACCESS_TOKEN_EXPIRES_IN: int``
 #: The number of seconds after an access token is issued until it expires.
@@ -66,15 +65,19 @@ MAX_ACCESS_TOKEN_TTL = 3600
 # ``/var/www/local_settings.py``, just below.
 def use_deprecated_settings():
     ENCRYPTION_KEY = HMAC_ENCRYPTION_KEY
+
+
 try:
     # Import everything from ``local_settings``, if it exists.
     from local_settings import *
+
     use_deprecated_settings()
 except ImportError:
     # If it doesn't, look in ``/var/www/fence``.
     try:
         import imp
-        imp.load_source('local_settings', '/var/www/fence/local_settings.py')
+
+        imp.load_source("local_settings", "/var/www/fence/local_settings.py")
         use_deprecated_settings()
     except IOError:
         pass
