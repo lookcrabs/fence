@@ -50,7 +50,7 @@ def parse_arguments():
 
     client_create = subparsers.add_parser("client-create")
     client_create.add_argument("--client", required=True)
-    client_create.add_argument("--urls", required=True)
+    client_create.add_argument("--urls", required=True, nargs="+")
     client_create.add_argument(
         "--username",
         help="user(can represent an organization) that owns the client",
