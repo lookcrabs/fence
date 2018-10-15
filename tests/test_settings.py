@@ -133,7 +133,6 @@ REMOVE_SERVICE_ACCOUNT_EMAIL_NOTIFICATION = {
     "subject": "User service account removal notification",
     "from": "do-not-reply@planx-pla.net",
     "admin": [],
-    "contact number": "123456789",
     "content": """
 
     Service accounts {} were removed from access control lists because some \

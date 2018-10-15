@@ -16,6 +16,8 @@ from werkzeug.datastructures import ImmutableMultiDict
 
 from fence.models import Client, GrantType, User
 from fence.jwt.token import CLIENT_ALLOWED_SCOPES
+from fence.errors import NotFound
+from fence.config import config
 
 
 rng = SystemRandom()
@@ -235,14 +237,17 @@ def send_email(from_email, to_emails, subject, text, smtp_domain):
         KeyError
 
     """
-    from fence.settings import GUN_MAIL
+    if smtp_domain not in config["GUN_MAIL"]:
+        raise NotFound(
+            "SMTP Domain '{}' does not exist in configuration for GUN_MAIL. "
+            "Cannot send email."
+        )
 
-    api_key = GUN_MAIL[smtp_domain]['api_key']
-    email_url = GUN_MAIL[smtp_domain]['api_url'] + '/messages'
+    api_key = config["GUN_MAIL"][smtp_domain].get("api_key", "")
+    email_url = config["GUN_MAIL"][smtp_domain].get("api_url", "") + "/messages"
 
-    return requests.post(email_url, auth=('api', api_key), data={
-        'from': from_email,
-        'to': to_emails,
-        'subject': subject,
-        'text': text
-    })
+    return requests.post(
+        email_url,
+        auth=("api", api_key),
+        data={"from": from_email, "to": to_emails, "subject": subject, "text": text},
+    )
