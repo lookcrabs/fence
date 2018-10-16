@@ -20,8 +20,6 @@ from fence.rbac.client import ArboristClient
 from fence.sync.sync_users import UserSyncer
 from fence.resources import userdatamodel as udm
 
-from ..test_settings import DB
-
 from fence.models import AccessPrivilege, AuthorizationProvider, User
 
 LOCAL_CSV_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data/csv")
@@ -139,7 +137,7 @@ def syncer(db_session, request):
 
     syncer_obj = UserSyncer(
         dbGaP=dbGap,
-        DB=DB,
+        DB=test_db,
         db_session=db_session,
         project_mapping=project_mapping,
         storage_credentials=storage_credentials,
