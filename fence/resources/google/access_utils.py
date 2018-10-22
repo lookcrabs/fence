@@ -61,9 +61,10 @@ def get_google_project_number(google_project_id, google_cloud_manager):
         response = google_cloud_manager.get_project_info()
         return response.get("projectNumber")
     except Exception as exc:
-        logger.error("Could not determine google project number for Project"
-                     "ID: {} due to error. (Details : {})"
-                     .format(google_project_id, exc))
+        logger.error(
+            "Could not determine google project number for Project"
+            "ID: {} due to error. (Details : {})".format(google_project_id, exc)
+        )
         return None
 
 
@@ -98,16 +99,17 @@ def get_google_project_parent_org(google_cloud_manager):
         return google_cloud_manager.get_project_organization()
     except Exception as exc:
         logger.error(
-                "Could not determine if Google project (id: {}) has parent org"
-                "due to error (Details: {})"
-                .format(getattr(google_cloud_manager, "project_id", "unknown")
-                        , exc)
+            "Could not determine if Google project (id: {}) has parent org"
+            "due to error (Details: {})".format(
+                getattr(google_cloud_manager, "project_id", "unknown"), exc
+            )
         )
         return None
 
 
 def get_google_project_valid_users_and_service_accounts(
-        project_id, google_cloud_manager, membership=None):
+    project_id, google_cloud_manager, membership=None
+):
     """
     Gets google project members of type
     USER or SERVICE_ACCOUNT and raises an error if it finds a member
@@ -173,15 +175,14 @@ def is_valid_service_account_type(account_id, google_cloud_manager):
     """
     try:
         sa_type = google_cloud_manager.get_service_account_type(account_id)
-        return (
-            sa_type
-            in ALLOWED_SERVICE_ACCOUNT_TYPES
-        )
+        return sa_type in ALLOWED_SERVICE_ACCOUNT_TYPES
     except Exception as exc:
         logger.error(
             "validity of Google service account {} (google project: {}) type "
-            "determined False due to error. Details: {}"
-            .format(account_id, google_cloud_manager.project_id, exc))
+            "determined False due to error. Details: {}".format(
+                account_id, google_cloud_manager.project_id, exc
+            )
+        )
 
 
 def service_account_has_external_access(service_account, google_cloud_manager):
@@ -198,8 +199,9 @@ def service_account_has_external_access(service_account, google_cloud_manager):
     response = google_cloud_manager.get_service_account_policy(service_account)
     if response.status_code != 200:
         logger.error(
-            "Unable to get IAM policy for service account {}\n{}."
-            .format(service_account, response.json())
+            "Unable to get IAM policy for service account {}\n{}.".format(
+                service_account, response.json()
+            )
         )
         # if there is an exception, assume it has external access
         return True
@@ -266,7 +268,7 @@ def is_service_account_from_google_project(
 
 
 def is_user_member_of_google_project(
-        user_id, google_cloud_manager, db=None, membership=None
+    user_id, google_cloud_manager, db=None, membership=None
 ):
     """
         Return whether or not the given user is a member of the provided
@@ -291,14 +293,16 @@ def is_user_member_of_google_project(
     if not user:
         logger.error(
             "Could not determine if user (id: {} is from project:"
-            " {} due to error. User does not exist..."
-                .format(user_id, google_cloud_manager.project_id))
+            " {} due to error. User does not exist...".format(
+                user_id, google_cloud_manager.project_id
+            )
+        )
         return False
 
     linked_google_account = (
         session.query(UserGoogleAccount)
-            .filter(UserGoogleAccount.user_id == user_id)
-            .first()
+        .filter(UserGoogleAccount.user_id == user_id)
+        .first()
     )
 
     try:
@@ -307,24 +311,24 @@ def is_user_member_of_google_project(
         # first check if user.email is in project, then linked account
         if not (user.email and user.email in member_emails):
             if not (
-                linked_google_account
-                and linked_google_account.email in member_emails
+                linked_google_account and linked_google_account.email in member_emails
             ):
                 # no user email is in project
                 return False
     except Exception as exc:
         logger.error(
             "Could not determine if user (id: {}) is from project:"
-            " {} due to error. Details: {}"
-            .format(user.id,
-                    getattr(google_cloud_manager, "project_id", "unknown"),
-                    exc))
+            " {} due to error. Details: {}".format(
+                user.id, getattr(google_cloud_manager, "project_id", "unknown"), exc
+            )
+        )
         return False
 
     return True
 
+
 def is_user_member_of_all_google_projects(
-        user_id, google_project_ids, db=None, membership=None,
+    user_id, google_project_ids, db=None, membership=None
 ):
     """
     Return whether or not the given user is a member of ALL of the provided
@@ -347,7 +351,9 @@ def is_user_member_of_all_google_projects(
     is_member = False
     for google_project_id in google_project_ids:
         with GoogleCloudManager(google_project_id) as google_cloud_manager:
-            is_member = is_user_member_of_google_project(user_id, google_cloud_manager, db, membership)
+            is_member = is_user_member_of_google_project(
+                user_id, google_cloud_manager, db, membership
+            )
 
             if not is_member:
                 return False
