@@ -24,7 +24,7 @@ from fence import utils
 from fence.config import config
 
 
-def validation_check(db, config=None):
+def validation_check(db):
     """
     Google validation check for all user-registered service accounts
     and projects.
@@ -51,9 +51,7 @@ def validation_check(db, config=None):
             print("Validating Google Service Account: {}".format(sa_email))
             # Do some basic service account checks, this won't validate
             # the data access, that's done when the project's validated
-            validity_info = _is_valid_service_account(
-                sa_email, google_project_id, config=config
-            )
+            validity_info = _is_valid_service_account(sa_email, google_project_id)
             if not validity_info:
                 print(
                     "INVALID SERVICE ACCOUNT {} DETECTED. REMOVING...".format(sa_email)
@@ -71,9 +69,7 @@ def validation_check(db, config=None):
                 email_required = True
 
         print("Validating Google Project: {}".format(google_project_id))
-        google_project_validity = _is_valid_google_project(
-            google_project_id, db=db, config=config
-        )
+        google_project_validity = _is_valid_google_project(google_project_id, db=db)
         if not google_project_validity:
             # for now, if we detect in invalid project, remove ALL service
             # accounts from access for that project.
@@ -111,7 +107,7 @@ def validation_check(db, config=None):
             )
 
 
-def _is_valid_service_account(sa_email, google_project_id, config=None):
+def _is_valid_service_account(sa_email, google_project_id):
     """
     Validate the given registered service account and remove if invalid.
 
@@ -133,7 +129,7 @@ def _is_valid_service_account(sa_email, google_project_id, config=None):
         sa_validity = GoogleServiceAccountValidity(
             sa_email, google_project_id, google_project_number=google_project_number
         )
-        sa_validity.check_validity(early_return=True, config=config)
+        sa_validity.check_validity(early_return=True)
     except Exception:
         # any issues, assume invalid
         # TODO not sure if this is the right way to handle this...
@@ -144,14 +140,14 @@ def _is_valid_service_account(sa_email, google_project_id, config=None):
     return sa_validity
 
 
-def _is_valid_google_project(google_project_id, db=None, config=None):
+def _is_valid_google_project(google_project_id, db=None):
     """
     Validate the given google project id and remove all registered service
     accounts under that project if invalid.
     """
     try:
         project_validity = GoogleProjectValidity(google_project_id)
-        project_validity.check_validity(early_return=True, db=db, config=config)
+        project_validity.check_validity(early_return=True, db=db)
 
     except Exception:
         # any issues, assume invalid
