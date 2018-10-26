@@ -20,6 +20,7 @@ from cirrus.google_cloud import (
 from cirrus.google_cloud.iam import GooglePolicyMember
 
 import fence
+from fence.errors import NotFound
 from fence.models import (
     Project,
     UserServiceAccount,
@@ -30,6 +31,7 @@ from fence.resources.google.access_utils import (
     is_valid_service_account_type,
     service_account_has_external_access,
     get_google_project_valid_users_and_service_accounts,
+    get_service_account_policy,
     _force_remove_service_account_from_access_db,
     force_remove_service_account_from_access,
     extend_service_account_access,
@@ -63,9 +65,7 @@ def test_not_valid_service_account_type_google_api(cloud_manager):
     Test that GOOGLE_API is not a valid service account type
     for service account registration
     """
-    (
-        cloud_manager.get_service_account_type.return_value
-    ) = GOOGLE_API_SERVICE_ACCOUNT
+    (cloud_manager.get_service_account_type.return_value) = GOOGLE_API_SERVICE_ACCOUNT
     assert not is_valid_service_account_type(1, cloud_manager)
 
 
@@ -85,9 +85,7 @@ def test_is_valid_service_account_type_user_managed(cloud_manager):
     Test that USER_MANAGED is a valid service account type
     for service account registration
     """
-    (
-        cloud_manager.get_service_account_type.return_value
-    ) = USER_MANAGED_SERVICE_ACCOUNT
+    (cloud_manager.get_service_account_type.return_value) = USER_MANAGED_SERVICE_ACCOUNT
     assert is_valid_service_account_type(1, cloud_manager)
 
 
@@ -110,13 +108,11 @@ def test_service_account_has_role_in_service_policy(cloud_manager):
         ]
     }
 
-    (
-        cloud_manager.get_service_account_policy.return_value
-    ) = MockResponse(faked_json, 200)
-
-    assert service_account_has_external_access(
-        "test_service_account", cloud_manager
+    (cloud_manager.get_service_account_policy.return_value) = MockResponse(
+        faked_json, 200
     )
+
+    assert service_account_has_external_access("test_service_account", cloud_manager)
 
 
 def test_service_account_has_user_managed_key_in_service_policy(cloud_manager):
@@ -125,17 +121,13 @@ def test_service_account_has_user_managed_key_in_service_policy(cloud_manager):
     """
     faked_json = {"etag": "ACAB"}
 
-    (
-        cloud_manager.get_service_account_policy.return_value
-    ) = MockResponse(faked_json, 200)
-
-    (
-        cloud_manager.get_service_account_keys_info.return_value
-    ) = ["key1", "key2"]
-
-    assert service_account_has_external_access(
-        "test_service_account", cloud_manager
+    (cloud_manager.get_service_account_policy.return_value) = MockResponse(
+        faked_json, 200
     )
+
+    (cloud_manager.get_service_account_keys_info.return_value) = ["key1", "key2"]
+
+    assert service_account_has_external_access("test_service_account", cloud_manager)
 
 
 def test_service_account_does_not_have_external_access(cloud_manager):
@@ -144,13 +136,11 @@ def test_service_account_does_not_have_external_access(cloud_manager):
     """
     faked_json = {"etag": "ACAB"}
 
-    (
-        cloud_manager.get_service_account_policy.return_value
-    ) = MockResponse(faked_json, 200)
+    (cloud_manager.get_service_account_policy.return_value) = MockResponse(
+        faked_json, 200
+    )
 
-    (
-        cloud_manager.get_service_account_keys_info.return_value
-    ) = []
+    (cloud_manager.get_service_account_keys_info.return_value) = []
     assert not service_account_has_external_access(
         "test_service_account", cloud_manager
     )
@@ -160,9 +150,7 @@ def test_service_account_has_external_access_raise_exception(cloud_manager):
     """
     In the case that a exception is raised when there is no access to the service account policy
     """
-    (
-        cloud_manager.get_service_account_policy.return_value
-    ) = Exception("exception")
+    (cloud_manager.get_service_account_policy.return_value) = Exception("exception")
 
     with pytest.raises(Exception):
         assert service_account_has_external_access(
@@ -174,13 +162,16 @@ def test_service_account_has_external_access_no_authorization(cloud_manager):
     """
     In the case that a exception is raised when there is no access to the service account policy
     """
-    (
-        cloud_manager.get_service_account_policy.return_value
-    ) = MockResponse({}, 403)
+    (cloud_manager.get_service_account_policy.return_value) = MockResponse({}, 403)
 
-    assert service_account_has_external_access(
-        "test_service_account", cloud_manager
-    )
+    assert service_account_has_external_access("test_service_account", cloud_manager)
+
+
+def test_service_account_does_not_exist(cloud_manager):
+    (cloud_manager.get_service_account_policy.return_value) = MockResponse({}, 404)
+
+    with pytest.raises(NotFound):
+        get_service_account_policy("test", cloud_manager)
 
 
 def test_project_has_valid_membership(cloud_manager, db_session):
@@ -188,9 +179,7 @@ def test_project_has_valid_membership(cloud_manager, db_session):
     Test that a project with only users and service acounts
     has valid membership
     """
-    (
-        cloud_manager.get_project_membership.return_value
-    ) = [
+    (cloud_manager.get_project_membership.return_value) = [
         GooglePolicyMember("user", "user@gmail.com"),
         GooglePolicyMember("serviceAccount", "sa@gmail.com"),
     ]
@@ -206,7 +195,9 @@ def test_project_has_valid_membership(cloud_manager, db_session):
         get_users_mock,
     )
     get_users_patcher.start()
-    assert get_google_project_valid_users_and_service_accounts(cloud_manager.project_id, cloud_manager)
+    assert get_google_project_valid_users_and_service_accounts(
+        cloud_manager.project_id, cloud_manager
+    )
     get_users_patcher.stop()
 
 
@@ -215,14 +206,14 @@ def test_project_has_invalid_membership(cloud_manager, db_session):
     Test that a project with a non-users or service acounts
      has invalid membership
      """
-    (
-        cloud_manager.get_project_membership.return_value
-    ) = [
+    (cloud_manager.get_project_membership.return_value) = [
         GooglePolicyMember("user", "user@gmail.com"),
         GooglePolicyMember("otherType", "other@gmail.com"),
     ]
     with pytest.raises(Exception):
-        get_google_project_valid_users_and_service_accounts(cloud_manager.project_id, cloud_manager)
+        get_google_project_valid_users_and_service_accounts(
+            cloud_manager.project_id, cloud_manager
+        )
 
 
 def test_remove_service_account_from_access(cloud_manager, db_session, setup_data):
