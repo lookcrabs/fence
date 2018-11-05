@@ -226,7 +226,7 @@ def send_email(from_email, to_emails, subject, text, smtp_domain):
                 "smtp_hostname": "smtp.mailgun.org",
                 "default_login": "postmaster@mailgun.planx-pla.net",
                 "api_url": "https://api.mailgun.net/v3/mailgun.planx-pla.net",
-                "smtp_password": password",
+                "smtp_password": "password",
                 "api_key": "api key"
             }
 
@@ -237,7 +237,9 @@ def send_email(from_email, to_emails, subject, text, smtp_domain):
         KeyError
 
     """
-    if smtp_domain not in config["GUN_MAIL"]:
+    if smtp_domain not in config["GUN_MAIL"] or not config["GUN_MAIL"].get(
+        "smtp_password"
+    ):
         raise NotFound(
             "SMTP Domain '{}' does not exist in configuration for GUN_MAIL. "
             "Cannot send email."
