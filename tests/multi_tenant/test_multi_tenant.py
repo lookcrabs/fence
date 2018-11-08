@@ -9,6 +9,8 @@ import urlparse
 # in python3:
 # urllib.parse
 
+import flask
+
 import fence
 
 from tests.utils import oauth2
@@ -57,7 +59,9 @@ def test_login(
 
     with fence_client_app.test_client() as fence_client_client:
         # Part 1.
-        redirect_url_quote = urllib.quote("/login/fence/login")
+        redirect_url_quote = urllib.quote(
+            fence_client_app.config["BASE_URL"].rstrip("/") + "/login/fence/login"
+        )
         path = "/login/fence?redirect_uri={}".format(redirect_url_quote)
         response_login_fence = fence_client_client.get(path)
         # This should be pointing at ``/oauth2/authorize`` of the IDP fence.

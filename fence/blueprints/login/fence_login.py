@@ -25,9 +25,8 @@ class FenceRedirect(RedirectMixin, Resource):
         oauth2_redirect_uri = flask.current_app.fence_client.client_kwargs.get(
             "redirect_uri"
         )
-        redirect_url = (
-            flask.request.args.get("redirect")
-            or flask.request.args.get("redirect_uri")
+        redirect_url = flask.request.args.get("redirect") or flask.request.args.get(
+            "redirect_uri"
         )
         self.validate_redirect(redirect_url)
         if redirect_url:

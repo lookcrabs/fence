@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import copy
 import os
 
 from addict import Dict
@@ -65,6 +66,7 @@ def fence_client_app(
     kid_2,
     rsa_private_key_2,
     rsa_public_key_2,
+    monkeypatch,
 ):
     """
     A Flask application fixture which acts as a client of the original ``app``
@@ -72,7 +74,37 @@ def fence_client_app(
     """
     root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     client_app = flask.Flask("client_app")
+    monkeypatch.setattr(test_settings, "BASE_URL", "/")
+    monkeypatch.setattr(test_settings, "APPLICATION_ROOT", "/")
+    monkeypatch.setattr(test_settings, "MOCK_AUTH", False)
+    try:
+        monkeypatch.setattr(test_settings, "DEFAULT_LOGIN_URL", "/login/fence")
+    except AttributeError:
+        test_settings.DEFAULT_LOGIN_URL = None
+        monkeypatch.setattr(test_settings, "DEFAULT_LOGIN_URL", "/login/fence")
+    monkeypatch.setattr(
+        test_settings,
+        "OPENID_CONNECT",
+        {
+            "fence": {
+                "client_id": fence_oauth_client.client_id,
+                "client_secret": fence_oauth_client.client_secret,
+                "api_base_url": "http://localhost:50000",
+                "authorize_url": "http://localhost:50000/oauth2/authorize",
+                "access_token_url": "http://localhost:50000/oauth2/token",
+                "refresh_token_url": "http://localhost:50000/oauth2/token",
+                "client_kwargs": {
+                    "scope": "openid user",
+                    "redirect_uri": fence_oauth_client_url,
+                },
+            }
+        },
+    )
     app_init(client_app, test_settings, root_dir=root_dir)
+    client_app.db.Session = lambda: db_session
+    client_app.fence_client = OAuthClient(
+        **client_app.config["OPENID_CONNECT"]["fence"]
+    )
 
     keypair = Keypair(
         kid=kid_2, public_key=rsa_public_key_2, private_key=rsa_private_key_2
@@ -80,28 +112,6 @@ def fence_client_app(
     client_app.keypairs = [keypair]
 
     client_app.jwt_public_keys["/"] = OrderedDict([(kid_2, rsa_public_key_2)])
-
-    client_app.config["BASE_URL"] = "/"
-    client_app.config["MOCK_AUTH"] = False
-    client_app.config["DEFAULT_LOGIN_URL"] = "/login/fence"
-    client_app.db.Session = lambda: db_session
-    client_app.config["OPENID_CONNECT"] = {
-        "fence": {
-            "client_id": fence_oauth_client.client_id,
-            "client_secret": fence_oauth_client.client_secret,
-            "api_base_url": "http://localhost:50000",
-            "authorize_url": "http://localhost:50000/oauth2/authorize",
-            "access_token_url": "http://localhost:50000/oauth2/token",
-            "refresh_token_url": "http://localhost:50000/oauth2/token",
-            "client_kwargs": {
-                "scope": "openid user",
-                "redirect_uri": fence_oauth_client_url,
-            },
-        }
-    }
-    client_app.fence_client = OAuthClient(
-        **client_app.config["OPENID_CONNECT"]["fence"]
-    )
     return client_app
 
 
