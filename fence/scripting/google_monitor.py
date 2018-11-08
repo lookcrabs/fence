@@ -6,8 +6,10 @@ their respective Google projects. The functions in this file will also
 handle invalid service accounts and projects.
 """
 import traceback
+
 from cirrus.google_cloud.iam import GooglePolicyMember
 from cirrus import GoogleCloudManager
+from cdislogging import get_logger
 
 from fence.resources.google.validity import (
     GoogleProjectValidity,
@@ -27,8 +29,7 @@ from fence.resources.google.access_utils import (
 
 from fence import utils
 from fence.config import config
-
-from cdislogging import get_logger
+from fence.errors import Unauthorized
 
 logger = get_logger(__name__)
 
@@ -61,7 +62,22 @@ def validation_check(db):
             print("Validating Google Service Account: {}".format(sa_email))
             # Do some basic service account checks, this won't validate
             # the data access, that's done when the project's validated
-            validity_info = _is_valid_service_account(sa_email, google_project_id)
+            try:
+                validity_info = _is_valid_service_account(sa_email, google_project_id)
+            except Unauthorized:
+                """
+                is_validity_service_account can raise an exception if the monitor does
+                not have access, which will be caught and handled during the Project check below
+                The logic in the endpoints is reversed (Project is checked first,
+                not SAs) which is why there's is a sort of weird handling of it here.
+                """
+                logger.info(
+                    "Monitor does not have access to validate "
+                    "service account {}. This should be handled "
+                    "in project validation."
+                )
+                continue
+
             if not validity_info:
                 print(
                     "INVALID SERVICE ACCOUNT {} DETECTED. REMOVING...".format(sa_email)
@@ -143,7 +159,7 @@ def _is_valid_service_account(sa_email, google_project_id):
         # if our monitor doesn't have access at this point, just don't return any
         # information. When the project check runs, it will catch the monitor missing
         # error and add it to the removal reasons
-        return None
+        raise Unauthorized
 
     try:
         sa_validity = GoogleServiceAccountValidity(
