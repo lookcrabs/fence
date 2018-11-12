@@ -48,18 +48,18 @@ def validation_check(db):
           TODO: Test this function with various amounts of service accounts
                 and delays from the google API
     """
-    email_required = False
     registered_service_accounts = get_all_registered_service_accounts(db=db)
     project_service_account_mapping = _get_project_service_account_mapping(
         registered_service_accounts
     )
-    invalid_registered_service_account_reasons = {}
-    invalid_project_reasons = {}
 
     for google_project_id, sa_emails in project_service_account_mapping.iteritems():
+        email_required = False
+        invalid_registered_service_account_reasons = {}
+        invalid_project_reasons = {}
         sa_emails_removed = []
         for sa_email in sa_emails:
-            print("Validating Google Service Account: {}".format(sa_email))
+            logger.debug("Validating Google Service Account: {}".format(sa_email))
             # Do some basic service account checks, this won't validate
             # the data access, that's done when the project's validated
             try:
@@ -79,8 +79,10 @@ def validation_check(db):
                 continue
 
             if not validity_info:
-                print(
-                    "INVALID SERVICE ACCOUNT {} DETECTED. REMOVING...".format(sa_email)
+                logger.info(
+                    "INVALID SERVICE ACCOUNT {} DETECTED. REMOVING. Validity Information: {}".format(
+                        sa_email, str(getattr(validity_info, "_info", None))
+                    )
                 )
                 force_remove_service_account_from_access(
                     sa_email, google_project_id, db=db
@@ -104,8 +106,9 @@ def validation_check(db):
         for sa_email in sa_emails_removed:
             sa_emails.remove(sa_email)
 
-        print("Validating Google Project: {}".format(google_project_id))
+        logger.debug("Validating Google Project: {}".format(google_project_id))
         google_project_validity = _is_valid_google_project(google_project_id, db=db)
+
         if not google_project_validity:
             # for now, if we detect in invalid project, remove ALL service
             # accounts from access for that project.
@@ -113,9 +116,12 @@ def validation_check(db):
             # TODO: If the issue is ONLY a specific service account,
             # it may be possible to isolate it and only remove that
             # from access.
-            print(
-                "INVALID GOOGLE PROJECT {} DETECTED. "
-                "REMOVING ALL SERVICE ACCOUNTS...".format(google_project_id)
+            logger.info(
+                "INVALID GOOGLE PROJECT {} DETECTED. REMOVING ALL SERVICE ACCOUNTS. "
+                "Validity Information: {}".format(
+                    google_project_id,
+                    str(getattr(google_project_validity, "_info", None)),
+                )
             )
             for sa_email in sa_emails:
                 force_remove_service_account_from_access(
@@ -130,9 +136,18 @@ def validation_check(db):
             invalid_project_reasons[
                 "non_registered_service_accounts"
             ] = _get_invalid_sa_project_removal_reasons(google_project_validity)
+            invalid_project_reasons["access"] = _get_access_removal_reasons(
+                google_project_validity
+            )
             email_required = True
 
         if email_required:
+            logger.debug(
+                "Sending email with service account removal reasons: {} and project "
+                "removal reasons: {}.".format(
+                    invalid_registered_service_account_reasons, invalid_project_reasons
+                )
+            )
             _send_emails_informing_service_account_removal(
                 _get_user_email_list_from_google_project_with_owner_role(
                     google_project_id
@@ -181,10 +196,13 @@ def _is_valid_service_account(sa_email, google_project_id):
                 check_external_access=True,
             )
 
-    except Exception:
+    except Exception as exc:
         # any issues, assume invalid
         # TODO not sure if this is the right way to handle this...
-        print("Service Account determined invalid due to unhandled exception:")
+        logger.warning(
+            "Service Account {} determined invalid due to unhandled exception: {}. "
+            "Assuming service account is invalid.".format(sa_email, str(exc))
+        )
         traceback.print_exc()
         sa_validity = None
 
@@ -199,11 +217,13 @@ def _is_valid_google_project(google_project_id, db=None):
     try:
         project_validity = GoogleProjectValidity(google_project_id)
         project_validity.check_validity(early_return=True, db=db)
-
-    except Exception:
+    except Exception as exc:
         # any issues, assume invalid
         # TODO not sure if this is the right way to handle this...
-        print("Project determined invalid due to unhandled exception:")
+        logger.warning(
+            "Project {} determined invalid due to unhandled exception: {}. "
+            "Assuming project is invalid.".format(google_project_id, str(exc))
+        )
         traceback.print_exc()
         project_validity = None
 
@@ -303,6 +323,30 @@ def _get_invalid_sa_project_removal_reasons(google_project_validity):
         if not sa_validity:
             removal_reasons[sa_email] = _get_service_account_removal_reasons(
                 sa_validity
+            )
+
+    return removal_reasons
+
+
+def _get_access_removal_reasons(google_project_validity):
+
+    removal_reasons = {}
+
+    if google_project_validity is None:
+        return removal_reasons
+
+    for project, access_validity in google_project_validity.get("access", {}):
+        removal_reasons[project] = []
+        if access_validity["exists"] is False:
+            removal_reasons[project].append(
+                "Data access project {} no longer exists.".format(project)
+            )
+
+        if access_validity["all_users_have_access"] is False:
+            removal_reasons[project].append(
+                "Not all users on the Google Project have access to data project {}.".format(
+                    project
+                )
             )
 
     return removal_reasons
@@ -414,11 +458,12 @@ def _send_emails_informing_service_account_removal(
             for reason in removal_reasons:
                 content += "\n\t\t - {}".format(reason)
 
-    general_project_errors = invalid_project_reasons.get("general")
+    general_project_errors = invalid_project_reasons.get("general", {})
     non_reg_sa_errors = invalid_project_reasons.get(
         "non_registered_service_accounts", {}
     )
-    if general_project_errors or non_reg_sa_errors:
+    access_errors = invalid_project_reasons.get("access")
+    if general_project_errors or non_reg_sa_errors or access_errors:
         content += (
             "\n\t - Google Project {} determined invalid. All service "
             "accounts with data access will be removed from access.".format(project_id)
@@ -426,6 +471,11 @@ def _send_emails_informing_service_account_removal(
         for removal_reason in general_project_errors:
             if removal_reason:
                 content += "\n\t\t - {}".format(removal_reason)
+
+        if access_errors:
+            for project, removal_reasons in access_errors.iteritems():
+                for reason in removal_reasons:
+                    content += "\n\t\t - {}".format(reason)
 
         if non_reg_sa_errors:
             for sa_email, removal_reasons in non_reg_sa_errors.iteritems():
