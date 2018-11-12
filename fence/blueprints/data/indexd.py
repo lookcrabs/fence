@@ -240,6 +240,36 @@ class IndexedFile(object):
             )
         return len(self.set_acls & given_acls) > 0
 
+    @login_required({"data"})
+    def delete(self):
+        return self.delete_locations(delete_all=True)
+
+    @login_required({"data"})
+    def delete_files(self, urls=None):
+        """
+        Delete the data files stored at all the locations for this indexed file.
+
+        If a list of URLs is specified, delete only files at those locations;
+        otherwise, delete files at all locations.
+
+        Args:
+            urls (Optional[List[str]])
+
+        Return:
+            None
+        """
+        urls = urls or []
+        locations_to_delete = self.indexed_file_locations
+        if urls:
+            locations_to_delete = [
+                location
+                for location in locations_to_delete
+                if location.url in urls
+            ]
+        for location in locations_to_delete:
+            bucket = location.bucket_name()
+            flask.current_app.boto.delete_data_file(bucket, self.file_id)
+
 
 class IndexedFileLocation(object):
     """
@@ -308,6 +338,21 @@ class S3IndexedFileLocation(IndexedFileLocation):
             ),
         }
 
+    def bucket_name(self):
+        """
+        Return:
+            Optional[str]: bucket name or None if not not in cofig
+        """
+        s3_buckets = get_value(
+            flask.current_app.config,
+            "S3_BUCKETS",
+            InternalError("buckets not configured"),
+        )
+        for bucket in s3_buckets:
+            if re.match("^" + bucket + "$", self.parsed_url.netloc):
+                return bucket
+        return None
+
     def get_credential_to_access_bucket(self, aws_creds, expires_in):
         s3_buckets = get_value(
             flask.current_app.config,
@@ -319,11 +364,7 @@ class S3IndexedFileLocation(IndexedFileLocation):
         if len(aws_creds) == 0 and len(s3_buckets) > 0:
             raise InternalError("credential for buckets is not configured")
 
-        bucket_cred = None
-        for pattern in s3_buckets:
-            if re.match("^" + pattern + "$", self.parsed_url.netloc):
-                bucket_cred = s3_buckets[pattern]
-                break
+        bucket_cred = s3_buckets.get(self.bucket_name())
         if bucket_cred is None:
             raise Unauthorized("permission denied for bucket")
 

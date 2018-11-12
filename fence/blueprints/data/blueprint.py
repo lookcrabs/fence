@@ -11,10 +11,42 @@ from fence.errors import (
     UserError,
 )
 
-from fence.blueprints.data.indexd import BlankIndex, get_signed_url_for_file
+from fence.blueprints.data.indexd import (
+    BlankIndex,
+    IndexedFile,
+    get_signed_url_for_file,
+)
 
 
 blueprint = flask.Blueprint("data", __name__)
+
+
+@blueprint.route("/<path:file_id>", methods=["DELETE"])
+@require_auth_header(aud={"data"})
+@login_required({"data"})
+def delete_data_file(file_id):
+    """
+    Delete all the locations for a data file which was uploaded to bucket storage from
+    indexd.
+
+    If the data file is still at the first stage where it belongs to just the uploader
+    (and isn't linked to a project), then the deleting user should match the uploader
+    field on the record in indexd. Otherwise, the user must have delete permissions in
+    the project.
+
+    Args:
+        file_id (str): GUID of file to delete
+    """
+    indexd_server = (
+        flask.current_app.config.get("INDEXD")
+        or flask.current_app.config["BASE_URL"] + "/index"
+    )
+    indexd_server = indexd_server.rstrip("/")
+    response = requests.put("{}/index/{}".format(indexd_server, file_id), json={"urls": []})
+    if response.status_code != 200:
+        raise InternalError("could not remove URLs from indexd record for file: {}".format(file_id))
+    IndexedFile(file_id).delete_files()
+    return '', 204
 
 
 @blueprint.route("/upload", methods=["POST"])
